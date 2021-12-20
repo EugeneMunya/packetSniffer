@@ -2,6 +2,7 @@ import socket
 import struct
 import sys
 import time 
+from datetime import datetime
 
 myInterface=input('provide pc interface :')
 if myInterface == '':
@@ -13,7 +14,7 @@ def sniffInterface(intrfc='wlp3s0'):
 
 
 try:
-    scket=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
+    scket=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(0x0003))
     scket.bind((sniffInterface(),0))
 except socket.error as e:
     print(e)
@@ -34,7 +35,7 @@ def IPHeader(packet):
     payload=packet[ip_lenth:]
     source_addr = socket.inet_ntoa(iph[8])
     dest_addr = socket.inet_ntoa(iph[9])
-    return source_addr,dest_addr,protocal,payload
+    return source_addr,dest_addr,protocal,ip_lenth
 
 def TCPHeader(packet):
     tcp_header=struct.unpack('!HHLLBBHHH',packet[:20])
@@ -62,27 +63,31 @@ def formatMacAddrs(mac):
     
 
 #receive multiple packets
-while True:
-    raw_data,addr=scket.recvfrom(65565)
-    packet = raw_data
-    src_mac,dst_mac,ethType,eth_payload=EthHeader(packet)
+try:
+     while True:
+        raw_data,addr=scket.recvfrom(65565)
+        packet = raw_data
+        src_mac,dst_mac,ethType,eth_payload=EthHeader(packet)
 
-    print("TIMESTAMP:{}\n".format( time.time()))
-    print("SOURCE MAC ADDRESS:{} ==> DST MAC ADDRESS:{}\n".format(dst_mac,src_mac))
-    if ethType==8:
-        src_ip,dst_ip,proto,ip_payload=IPHeader(eth_payload)
-        print("SOURCE HOST:{} ==> DST HOST:{}\n".format(getHostName(src_ip),getHostName(dst_ip)))
-        if proto==6:
-            src_port,dst_port,payload=TCPHeader(ip_payload)
-            print("SOURCE IP:{} ==> PORT:{}\n".format(src_ip,src_port))
-            print("DST IP:{} ==> PORT:{}\n".format(dst_ip,dst_port))
-            print("paload:{}\n".format(payload))
-        elif proto==17:
-            src_port,dst_port,payload=UDPHeader(ip_payload)
-            print("SOURCE IP:{} ==> PORT:{}\n".format(src_ip,src_port))
-            print("DST IP:{} ==> PORT:{}\n".format(dst_ip,dst_port))
-            print("paload:{}\n".format(payload))
-    print("==============================================")
+        print("TIMESTAMP:{}\n".format(datetime.fromtimestamp(time.time())))
+        print("SOURCE MAC ADDRESS:{} ==> DST MAC ADDRESS:{}\n".format(dst_mac,src_mac))
+        if ethType==8:
+            src_ip,dst_ip,proto,ip_len=IPHeader(eth_payload)
+            print("SOURCE HOST:{} ==> DST HOST:{}\n".format(getHostName(src_ip),getHostName(dst_ip)))
+            if proto==6:
+                src_port,dst_port,payload=TCPHeader(eth_payload[ip_len:])
+                print("SOURCE IP:{} ==> PORT:{}\n".format(src_ip,src_port))
+                print("DST IP:{} ==> PORT:{}\n".format(dst_ip,dst_port))
+                print("paload:{}\n".format(payload))
+            elif proto==17:
+                src_port,dst_port,payload=UDPHeader(eth_payload[ip_len:])
+                print("SOURCE IP:{} ==> PORT:{}\n".format(src_ip,src_port))
+                print("DST IP:{} ==> PORT:{}\n".format(dst_ip,dst_port))
+                print("paload:{}\n".format(payload))
+        print("==============================================")
+except KeyboardInterrupt:
+    print("Application stoped")
+
 
 
     
